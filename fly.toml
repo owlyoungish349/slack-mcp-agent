@@ -1,0 +1,40 @@
+# Threshold — Fly.io worker configuration
+# Socket Mode agent: outbound WebSocket only, no inbound HTTP.
+# Deploy: fly deploy
+# Secrets:  fly secrets set GOOGLE_API_KEY=… GEMINI_API_KEY=… \
+#               SLACK_BOT_TOKEN=… SLACK_APP_TOKEN=… \
+#               SLACK_SIGNING_SECRET=… SLACK_USER_TOKEN=…
+
+app = "threshold-church-agent"
+primary_region = "lhr"
+
+[build]
+
+[env]
+  THRESHOLD_DATA_DIR = "/data"
+
+# Persist the SQLite impact store across restarts and redeploys.
+# Create the volume first: fly volumes create threshold_data --region lhr --size 1
+[[mounts]]
+  source      = "threshold_data"
+  destination = "/data"
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"
+
+# CRITICAL: disable scale-to-zero so the agent stays running for judges 24/7.
+# A stopped machine = agent offline exactly when a judge tests = silent failure.
+[deploy]
+  strategy = "immediate"
+
+# No [[services]] or [http_service] block — this is a worker with no inbound HTTP.
+# Fly auto-restarts the machine if it crashes (combined with 429 backoff = self-healing).
+#
+# After deploy, verify autostop is off:
+#   fly machine list                       # confirm state = started
+#   fly machine update <id> --autostop off # disable autostop per-machine if needed
+#   fly scale count 1                      # ensure exactly one machine runs
+#
+# Monitor startup:
+#   fly logs    # should show: Socket Mode connected, MCP server reached, Gemini live

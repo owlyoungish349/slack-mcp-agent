@@ -1,11 +1,30 @@
 {
   "display_information": {
-    "name": "slack-mcp-agent"
+    "name": "Threshold",
+    "description": "Multilingual belonging agent for small churches — connect newcomers to life groups, classes, and volunteering without a referral.",
+    "background_color": "#1a3a5c"
   },
   "features": {
     "assistant_view": {
-      "assistant_description": "Hi, I am an agent built using Bolt for Python. I am here to help you out!",
-      "suggested_prompts": []
+      "assistant_description": "I'm Threshold — your guide to getting connected at church. I speak many languages and can help you find life groups, English classes, volunteering, and more. No referral needed.",
+      "suggested_prompts": [
+        {
+          "title": "Find a group",
+          "message": "I'd like to meet some people and find a group to join."
+        },
+        {
+          "title": "Volunteer",
+          "message": "I'd love to help out — what volunteering opportunities are there?"
+        },
+        {
+          "title": "English classes",
+          "message": "Are there any English conversation or language classes?"
+        },
+        {
+          "title": "This week's news",
+          "message": "What's happening at church this week?"
+        }
+      ]
     },
     "app_home": {
       "home_tab_enabled": true,
@@ -13,9 +32,29 @@
       "messages_tab_read_only_enabled": false
     },
     "bot_user": {
-      "display_name": "slack-mcp-agent",
+      "display_name": "Threshold",
       "always_online": true
-    }
+    },
+    "slash_commands": [
+      {
+        "command": "/threshold-welcome",
+        "description": "Manually send a welcome DM to a member",
+        "usage_hint": "@username",
+        "should_escape": false
+      },
+      {
+        "command": "/threshold-digest",
+        "description": "Send a translated announcement digest to opted-in members",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/threshold-impact",
+        "description": "Show the Threshold impact dashboard",
+        "usage_hint": "",
+        "should_escape": false
+      }
+    ]
   },
   "oauth_config": {
     "redirect_urls": [
@@ -31,12 +70,6 @@
         "im:history",
         "mpim:history",
         "users:read",
-        "search:read.public",
-        "search:read.private",
-        "search:read.mpim",
-        "search:read.im",
-        "search:read.files",
-        "search:read.users",
         "chat:write",
         "canvases:read",
         "canvases:write",
@@ -45,36 +78,40 @@
       "bot": [
         "app_mentions:read",
         "channels:history",
+        "channels:manage",
+        "channels:read",
         "chat:write",
         "groups:history",
         "im:history",
         "im:read",
         "im:write",
+        "mpim:write",
         "reactions:write",
         "reactions:read",
         "users:read",
-        "assistant:write"
+        "users:read.email",
+        "assistant:write",
+        "commands"
       ]
     }
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://ngrok-free.app/slack/events",
       "bot_events": [
         "app_home_opened",
         "app_mention",
         "assistant_thread_started",
+        "member_joined_channel",
         "message.channels",
         "message.groups",
         "message.im"
       ]
     },
     "interactivity": {
-      "is_enabled": true,
-      "request_url": "https://ngrok-free.app/slack/events"
+      "is_enabled": true
     },
     "is_mcp_enabled": true,
-    "org_deploy_enabled": true,
+    "org_deploy_enabled": false,
     "socket_mode_enabled": true,
     "token_rotation_enabled": false
   }

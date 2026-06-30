@@ -8,9 +8,11 @@ from slack_sdk import WebClient
 
 from agent import get_model
 from listeners import register_listeners
+from store import user_store
 
 load_dotenv(dotenv_path=".env", override=False)
-get_model()  # Fail fast if no AI provider key is configured
+get_model()       # Fail fast if no AI provider key is configured
+user_store.init_db()  # Ensure SQLite tables exist (idempotent)
 
 logging.basicConfig(level=logging.DEBUG)
 

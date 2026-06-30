@@ -5,6 +5,7 @@ from slack_sdk import WebClient
 
 from agent import AgentDeps, run_agent
 from thread_context import conversation_store
+from listeners.utils import get_user_token
 from listeners.views.feedback_builder import build_feedback_blocks
 
 
@@ -67,7 +68,7 @@ def handle_message(
             channel_id=channel_id,
             thread_ts=thread_ts,
             message_ts=event["ts"],
-            user_token=context.user_token,
+            user_token=get_user_token(context),
         )
         result = run_agent(text, deps, message_history=history)
 
