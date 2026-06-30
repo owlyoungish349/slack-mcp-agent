@@ -1,6 +1,8 @@
 # Starter Agent for Slack (Bolt for Python and Pydantic AI)
 
-A minimal starter template for building AI-powered Slack agents with [Bolt for Python](https://docs.slack.dev/tools/bolt-python/) and [Pydantic AI](https://ai.pydantic.dev/) using models from [Anthropic](https://anthropic.com) or [OpenAI](https://openai.com). Works with the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) to search messages, read channels, send messages, and manage canvases — all from within your agent.
+A minimal starter template for building AI-powered Slack agents with [Bolt for Python](https://docs.slack.dev/tools/bolt-python/) and [Pydantic AI](https://ai.pydantic.dev/). Works with the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) to search messages, read channels, send messages, and manage canvases — all from within your agent.
+
+**This project is wired to run on [Google Gemini](https://aistudio.google.com) (free tier) by default** — see [Google Gemini Setup](#google-gemini-setup) below. Anthropic and OpenAI remain available as fallback providers from the upstream template.
 
 ## App Overview
 
@@ -100,7 +102,24 @@ pip install -r requirements.txt
 
 ## Providers
 
-This app supports both Anthropic and OpenAI as AI providers. Set at least one API key — if both are set, Anthropic is used by default.
+This app supports Google Gemini, Anthropic, and OpenAI as AI providers. The model is selected at runtime in [`agent/agent.py`](./agent/agent.py) (`get_model()`): **Gemini is preferred** when `GOOGLE_API_KEY`/`GEMINI_API_KEY` is set, falling back to Anthropic, then OpenAI.
+
+### Google Gemini Setup
+
+Uses Google's free [AI Studio](https://aistudio.google.com) tier through Pydantic AI's `GoogleModel`/`GoogleProvider` (`gemini-2.5-flash` by default).
+
+1. Create an API key at [aistudio.google.com](https://aistudio.google.com).
+2. Rename `.env.sample` to `.env`.
+3. Save the key to **both** of these vars in `.env` (same value in both — see [Known Issues](#known-issuesnotes) for why):
+
+```sh
+GOOGLE_API_KEY=YOUR_GEMINI_API_KEY
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+```
+
+To swap the model, edit `GEMINI_MODEL_NAME` in [`agent/agent.py`](./agent/agent.py) (e.g. to `gemini-2.5-flash-lite` if you hit the free-tier daily request cap). Avoid `gemini-2.0-*` models — deprecated.
+
+Calls to Gemini are wrapped with retry + exponential backoff on `429`/`RESOURCE_EXHAUSTED` (see `_run_with_backoff` in `agent/agent.py`), since the free tier rate-limits aggressively and fails silently if unhandled.
 
 ### Anthropic Setup
 
@@ -305,6 +324,26 @@ The `tools` directory contains one example tool (emoji reaction) that the agent 
 ### `/thread_context`
 
 The `store.py` file implements a thread-safe in-memory conversation history store, keyed by channel and thread. This enables multi-turn conversations where the agent remembers previous context within a thread.
+
+## Known Issues/Notes
+
+### Why both `GOOGLE_API_KEY` and `GEMINI_API_KEY` are set
+
+Pydantic AI's `GoogleProvider` reads `GOOGLE_API_KEY`, but older pydantic-ai versions read `GEMINI_API_KEY` instead. Setting both sidesteps version drift.
+
+### Windows: project path must not contain spaces
+
+The Slack CLI's Python hook runtime (`slack-cli-hooks`, installed via `pyproject.toml`/`requirements.txt`) builds shell command strings to invoke the project's Python interpreter. Two bugs surfaced when this project lived under a space-containing path (e.g. `OneDrive - Brunel University London\...`):
+
+1. **Dependency-install hook** (`slack create`/`slack run`'s auto-install step) splits the venv interpreter path on whitespace without respecting quoting, so a path like `...\OneDrive - Brunel...\python.exe` gets torn into multiple bogus arguments. **Workaround:** keep the project on a path with no spaces (this project lives at a flat path for that reason), and if dependency auto-install fails, install manually: `.venv\Scripts\python.exe -m pip install -e ".[test]"`.
+2. **`get-manifest`/`start` hooks**: `slack_cli_hooks` always wraps `sys.executable` in single quotes (POSIX-shell convention), but on Windows the CLI invokes these hook strings via PowerShell, which treats a leading single-quoted string as a string literal rather than a command (it would need a `&` call-operator prefix the CLI doesn't add). This breaks `slack run` regardless of spaces in the path. **Workaround applied:** patched `.venv\Lib\site-packages\slack_cli_hooks\hooks\get_hooks.py` to skip quoting on `sys.platform == "win32"`. **This patch lives only in the local `.venv` (gitignored) and will need to be reapplied if the venv is ever recreated** (`pip install -r requirements.txt` into a fresh venv, `rm -rf .venv`, etc.) — re-edit the `EXEC = ...` line in that file to read:
+   ```python
+   EXEC = (sys.executable if sys.platform == "win32" else f"'{sys.executable}'") or "python3"
+   ```
+
+### Windows: `python3` may resolve to a broken Windows Store stub
+
+If a bare `python3` command on your PATH prints "Python was not found; run without arguments to install from the Microsoft Store..." instead of running Python, the Slack CLI's `get-hooks` invocation (which calls `python3 -m slack_cli_hooks.hooks.get_hooks`) will silently fail. **Workaround applied:** a `python3.exe` shim (copy of `python.exe`) was added to `.venv\Scripts\` so the project's own venv resolves correctly when its `Scripts` folder is on PATH. This file is local to the gitignored `.venv` and will need to be recreated (`copy .venv\Scripts\python.exe .venv\Scripts\python3.exe`) if the venv is rebuilt.
 
 ## Troubleshooting
 
