@@ -70,6 +70,7 @@ def test_home_includes_quick_start_and_translate_actions():
     ]
     assert "start_conversation" in action_ids
     assert "open_translation" in action_ids
+    assert "open_group_message" in action_ids
 
 
 def test_welcome_picker_includes_persian():

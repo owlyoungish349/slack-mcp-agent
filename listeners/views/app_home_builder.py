@@ -54,6 +54,16 @@ def build_app_home_view(
                     "action_id": "open_translation",
                     "value": "open_translation",
                 },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Write to a group",
+                        "emoji": True,
+                    },
+                    "action_id": "open_group_message",
+                    "value": "open_group_message",
+                },
             ],
         },
         {"type": "divider"},
