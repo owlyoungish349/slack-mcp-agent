@@ -1,0 +1,44 @@
+%%{init: {"theme": "base", "themeVariables": {
+  "primaryColor": "#eef4fb",
+  "primaryBorderColor": "#1a3a5c",
+  "primaryTextColor": "#1a2733",
+  "lineColor": "#4a6785",
+  "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif",
+  "fontSize": "15px"
+}}}%%
+flowchart LR
+    subgraph SLACK["Slack sandbox workspace"]
+        direction TB
+        MEMBERS["👥 Members & judges<br/>(DMs · @mentions · slash commands)"]
+        DIR["📂 #groups-directory<br/>(searchable group entries)"]
+        ANN["📢 #announcements"]
+        GRP["🤝 Group channels<br/>(#cafe-volunteers, #english-circle, …)"]
+    end
+
+    MCP["🔌 Slack MCP Server<br/>mcp.slack.com<br/><i>search · read · post</i>"]
+
+    subgraph DO["DigitalOcean droplet (LON1) — Docker, restart=always"]
+        direction TB
+        BOLT["⚡ Bolt for Python<br/>listeners: events · commands · actions<br/>(Block Kit responses via Web API)"]
+        AGENT["🧠 Pydantic AI Agent<br/><i>Threshold system prompt + tools</i>"]
+        TOOLS["🛠 Local tools<br/>language prefs · impact events<br/>match cards · reactions"]
+        DB[("💾 SQLite impact store<br/>bind-mount /opt/threshold/data → /data<br/><i>survives rebuilds & reboots</i>")]
+        BOLT -->|"run_agent()"| AGENT
+        AGENT --> TOOLS
+        TOOLS --> DB
+    end
+
+    GEMINI["✨ Google Gemini 2.5 Flash<br/><i>reasoning · translation<br/>429 backoff built in</i>"]
+
+    MEMBERS <-->|"Socket Mode WebSocket<br/>(outbound only — no inbound ports)"| BOLT
+    AGENT <-->|"LLM calls"| GEMINI
+    AGENT <-->|"MCP over HTTP<br/>(user-token auth)"| MCP
+    MCP -->|"search directory"| DIR
+    MCP -->|"read announcements"| ANN
+    MCP -->|"post intro, tagging<br/>contact + newcomer"| GRP
+
+    style SLACK fill:#f5ecdf,stroke:#8a6d3b,stroke-width:2px
+    style DO fill:#e8f0e8,stroke:#2e6b34,stroke-width:2px
+    style MCP fill:#fdeaea,stroke:#a33c3c,stroke-width:3px
+    style GEMINI fill:#eae6f7,stroke:#5b4a8a,stroke-width:2px
+    style DB fill:#fff8e1,stroke:#8a6d3b
