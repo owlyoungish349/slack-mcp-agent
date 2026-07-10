@@ -1,8 +1,8 @@
 """Persistent SQLite store for Threshold: user language preferences and impact events.
 
 The database file lives at THRESHOLD_DATA_DIR/threshold.db.
-Set THRESHOLD_DATA_DIR to a Fly Volume mount path (/data) in production so
-metrics survive container restarts.
+Set THRESHOLD_DATA_DIR to the droplet bind-mount path (/data) in production so
+metrics survive container restarts and deploys.
 """
 
 import json

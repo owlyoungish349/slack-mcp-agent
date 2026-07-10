@@ -14,7 +14,8 @@ load_dotenv(dotenv_path=".env", override=False)
 get_model()       # Fail fast if no AI provider key is configured
 user_store.init_db()  # Ensure SQLite tables exist (idempotent)
 
-logging.basicConfig(level=logging.DEBUG)
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
