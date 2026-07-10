@@ -17,6 +17,36 @@ from store import user_store
 from listeners.views.threshold_blocks import build_welcome_blocks
 
 
+def _resolve_target_user_id(text: str, body: dict, client: WebClient) -> str | None:
+    """Resolve encoded mentions, raw @usernames, display names, or ``me``."""
+    encoded = re.search(r"<@([A-Z0-9]+)(?:\|[^>]+)?>", text)
+    if encoded:
+        return encoded.group(1)
+
+    candidate = text.lstrip("@").strip()
+    if candidate.casefold() == "me":
+        return body.get("user_id")
+    if not candidate:
+        return None
+
+    try:
+        members = client.users_list(limit=200).get("members", [])
+    except SlackApiError:
+        return None
+
+    wanted = candidate.casefold()
+    for member in members:
+        profile = member.get("profile", {})
+        names = {
+            member.get("name", ""),
+            profile.get("display_name", ""),
+            profile.get("real_name", ""),
+        }
+        if wanted in {name.casefold() for name in names if name}:
+            return member.get("id")
+    return None
+
+
 def handle_threshold_welcome(
     ack: Ack,
     body: dict,
@@ -28,16 +58,16 @@ def handle_threshold_welcome(
     ack()
 
     text = (body.get("text") or "").strip()
-    # Extract user ID from @-mention like <@U012AB3CD> or <@U012AB3CD|username>
-    match = re.search(r"<@([A-Z0-9]+)(?:\|[^>]+)?>", text)
-    if not match:
+    target_user_id = _resolve_target_user_id(text, body, client)
+    if not target_user_id:
         respond(
-            text="Usage: `/threshold-welcome @username`\nTag the user you want to welcome.",
+            text=(
+                "Usage: `/threshold-welcome @username` or `/threshold-welcome me`\n"
+                "Tag the user you want to welcome."
+            ),
             response_type="ephemeral",
         )
         return
-
-    target_user_id = match.group(1)
 
     try:
         info = client.users_info(user=target_user_id)

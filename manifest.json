@@ -40,7 +40,7 @@
         "command": "/threshold-welcome",
         "description": "Manually send a welcome DM to a member",
         "usage_hint": "@username",
-        "should_escape": false
+        "should_escape": true
       },
       {
         "command": "/threshold-digest",
