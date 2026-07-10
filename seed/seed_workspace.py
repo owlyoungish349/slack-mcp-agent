@@ -45,7 +45,6 @@ GROUP_DIRECTORY_ENTRIES = [
 👤 Contact: @maria-g | 📢 #english-circle
 A warm, relaxed weekly group for practising conversational English over tea and biscuits. No experience needed — just bring yourself.
 `Tags: english, language, learning, weekly`""",
-
     """\
 *Café Volunteering* ☕
 📅 Sundays 9:30–12:00 | 🏠 Church Café
@@ -53,7 +52,6 @@ A warm, relaxed weekly group for practising conversational English over tea and 
 👤 Contact: @james-t | 📢 #cafe-volunteers
 Help serve coffee and welcome people on Sunday mornings. A wonderful way to meet the community while making a difference. Training provided.
 `Tags: volunteering, café, sunday, serving`""",
-
     """\
 *Families & Children's Group* 👨‍👩‍👧
 📅 Thursdays 4:00–5:30pm | 🏠 Church Garden (weather permitting)
@@ -61,7 +59,6 @@ Help serve coffee and welcome people on Sunday mornings. A wonderful way to meet
 👤 Contact: @elena-r | 📢 #family-group
 A relaxed afternoon for parents and young children to meet, play, and connect. Bilingual (EN/ES) sessions. Snacks provided.
 `Tags: family, children, parents, spanish, bilingual`""",
-
     """\
 *Prayer Group* 🙏
 📅 Tuesdays 7:00–8:00pm | 🏠 Chapel
@@ -69,7 +66,6 @@ A relaxed afternoon for parents and young children to meet, play, and connect. B
 👤 Contact: @pastor-john | 📢 #prayer-group
 A quiet, open space for communal prayer and reflection. All traditions and backgrounds welcome.
 `Tags: prayer, quiet, weekly, spiritual`""",
-
     """\
 *New Members Fellowship* 🤝
 📅 Last Sunday of the month, 12:30–2:00pm | 🏠 Church Lounge
@@ -77,7 +73,6 @@ A quiet, open space for communal prayer and reflection. All traditions and backg
 👤 Contact: @sarah-c | 📢 #welcome
 A relaxed lunch gathering specifically for people who have recently joined. A perfect first step into the community.
 `Tags: new members, lunch, monthly, welcome, social`""",
-
     """\
 *Arabic Community Group* 🌙
 📅 Saturdays 3:00–5:00pm | 🏠 Room 5
@@ -135,26 +130,37 @@ def invite_bot_to_channel(client: WebClient, channel_id: str, bot_user_id: str) 
         client.conversations_invite(channel=channel_id, users=bot_user_id)
     except SlackApiError as e:
         err = e.response["error"]
-        if err != "already_in_channel":
+        if err not in ("already_in_channel", "cant_invite_self"):
             print(f"    ⚠ Could not invite bot: {err}")
 
 
-def post_if_empty(client: WebClient, channel_id: str, messages: list[str]) -> None:
-    """Post messages only if the channel has no history (avoids duplicates on re-run)."""
+def post_missing_messages(
+    client: WebClient, channel_id: str, messages: list[str]
+) -> int:
+    """Post only canonical messages that are not already in the channel."""
+    existing_texts: set[str] = set()
     try:
-        resp = client.conversations_history(channel=channel_id, limit=5)
-        if resp["messages"]:
-            print("    ℹ Channel already has content — skipping posts")
-            return
+        resp = client.conversations_history(channel=channel_id, limit=100)
+        existing_texts = {
+            message.get("text", "") for message in resp.get("messages", [])
+        }
     except SlackApiError:
         pass
 
+    posted = 0
     for msg in messages:
+        if msg in existing_texts:
+            continue
         try:
             client.chat_postMessage(channel=channel_id, text=msg, mrkdwn=True)
+            posted += 1
             time.sleep(0.5)  # stay well inside rate limits
         except SlackApiError as e:
             print(f"    ⚠ Post failed: {e.response['error']}")
+
+    if posted == 0:
+        print("    ℹ Canonical content already present — nothing to post")
+    return posted
 
 
 def main() -> None:
@@ -184,15 +190,19 @@ def main() -> None:
 
     print("\n── Seeding #groups-directory ───────────────────────────")
     if "groups-directory" in channel_ids:
-        post_if_empty(client, channel_ids["groups-directory"], GROUP_DIRECTORY_ENTRIES)
-        print(f"  Posted {len(GROUP_DIRECTORY_ENTRIES)} group entries")
+        posted = post_missing_messages(
+            client, channel_ids["groups-directory"], GROUP_DIRECTORY_ENTRIES
+        )
+        print(f"  Posted {posted} group entries")
     else:
         print("  ✗ #groups-directory not found — skipping")
 
     print("\n── Seeding #announcements ──────────────────────────────")
     if "announcements" in channel_ids:
-        post_if_empty(client, channel_ids["announcements"], ANNOUNCEMENTS)
-        print(f"  Posted {len(ANNOUNCEMENTS)} announcements")
+        posted = post_missing_messages(
+            client, channel_ids["announcements"], ANNOUNCEMENTS
+        )
+        print(f"  Posted {posted} announcements")
     else:
         print("  ✗ #announcements not found — skipping")
 
