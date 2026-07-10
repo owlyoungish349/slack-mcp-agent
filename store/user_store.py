@@ -52,6 +52,7 @@ def init_db() -> None:
 
 # ── Language preferences ────────────────────────────────────────────────────
 
+
 def get_language(user_id: str) -> tuple[str, str]:
     """Return (language_code, language_name). Defaults to ('en', 'English')."""
     with _connect() as conn:
@@ -88,6 +89,7 @@ def get_opted_in_users() -> list[str]:
 
 # ── Impact events ───────────────────────────────────────────────────────────
 
+
 def log_event(
     event_type: str,
     user_id: str | None = None,
@@ -119,15 +121,29 @@ def get_impact_summary() -> dict:
     """Return aggregated impact metrics for the /threshold-impact command."""
     with _connect() as conn:
 
-        def count(etype: str) -> int:
+        def count_events(etype: str) -> int:
             return conn.execute(
                 "SELECT COUNT(*) FROM events WHERE event_type = ?", (etype,)
             ).fetchone()[0]
 
-        welcomed = count("welcomed")
-        matched = count("matched")
-        intro_made = count("intro_made")
-        digest_sent = count("digest_sent")
+        def count_people(etype: str) -> int:
+            return conn.execute(
+                """
+                SELECT COUNT(DISTINCT user_id)
+                FROM events
+                WHERE event_type = ? AND user_id IS NOT NULL
+                """,
+                (etype,),
+            ).fetchone()[0]
+
+        # Welcome and match cards may be re-run during a conversation or demo;
+        # the dashboard should represent people helped rather than attempts.
+        welcomed = count_people("welcomed")
+        matched = count_people("matched")
+
+        # These are delivered actions, so retain their event counts.
+        intro_made = count_events("intro_made")
+        digest_sent = count_events("digest_sent")
 
         lang_rows = conn.execute(
             "SELECT DISTINCT language FROM user_preferences WHERE language IS NOT NULL"
@@ -163,6 +179,7 @@ def _calc_avg_connection_time(conn: sqlite3.Connection) -> float | None:
         if not rows:
             return None
         from datetime import datetime
+
         diffs = []
         fmt = "%Y-%m-%d %H:%M:%S"
         for r in rows:
