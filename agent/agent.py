@@ -5,8 +5,11 @@ import time
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models import Model
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from agent.deps import AgentDeps
 from agent.tools import (
@@ -95,7 +98,12 @@ _cached_model: str | Model | None = None
 
 # Pydantic AI's GoogleProvider reads GOOGLE_API_KEY; older versions read
 # GEMINI_API_KEY. Both are set in .env to be safe across versions.
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+GEMINI_FALLBACK_MODEL_NAME = os.environ.get(
+    "GEMINI_FALLBACK_MODEL_NAME", "gemini-2.5-flash-lite"
+)
+GITHUB_MODELS_URL = "https://models.github.ai/inference"
+GITHUB_MODELS_MODEL = os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4.1")
 
 
 def get_model() -> str | Model:
@@ -108,29 +116,52 @@ def get_model() -> str | Model:
     if _cached_model is not None:
         return _cached_model
 
+    models: list[str | Model] = []
+
     google_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if google_key:
         provider = GoogleProvider(api_key=google_key)
-        _cached_model = GoogleModel(GEMINI_MODEL_NAME, provider=provider)
-    elif os.environ.get("ANTHROPIC_API_KEY"):
-        _cached_model = "anthropic:claude-sonnet-4-6"
-    elif os.environ.get("OPENAI_API_KEY"):
-        _cached_model = "openai:gpt-4.1-mini"
-    else:
+        models.append(GoogleModel(GEMINI_MODEL_NAME, provider=provider))
+        if GEMINI_FALLBACK_MODEL_NAME != GEMINI_MODEL_NAME:
+            models.append(GoogleModel(GEMINI_FALLBACK_MODEL_NAME, provider=provider))
+
+    github_token = os.environ.get("GITHUB_MODELS_TOKEN")
+    if github_token:
+        github_provider = OpenAIProvider(
+            base_url=GITHUB_MODELS_URL,
+            api_key=github_token,
+        )
+        models.append(OpenAIChatModel(GITHUB_MODELS_MODEL, provider=github_provider))
+
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        models.append("anthropic:claude-sonnet-4-6")
+    if os.environ.get("OPENAI_API_KEY"):
+        models.append("openai:gpt-4.1-mini")
+
+    if not models:
         raise RuntimeError(
             "No AI provider configured. "
-            "Set GOOGLE_API_KEY (or GEMINI_API_KEY), ANTHROPIC_API_KEY, or "
-            "OPENAI_API_KEY in your environment."
+            "Set GOOGLE_API_KEY (or GEMINI_API_KEY), GITHUB_MODELS_TOKEN, "
+            "ANTHROPIC_API_KEY, or OPENAI_API_KEY in your environment."
         )
+
+    _cached_model = models[0] if len(models) == 1 else FallbackModel(*models)
+    logger.info("AI model chain configured with %d model(s)", len(models))
     return _cached_model
 
 
-def _is_rate_limit_error(exc: Exception) -> bool:
-    message = str(exc)
+def _is_transient_model_error(exc: Exception) -> bool:
+    message = str(exc).lower()
     return (
         "429" in message
-        or "RESOURCE_EXHAUSTED" in message
-        or "rate limit" in message.lower()
+        or "500" in message
+        or "502" in message
+        or "503" in message
+        or "504" in message
+        or "resource_exhausted" in message
+        or "unavailable" in message
+        or "rate limit" in message
+        or "high demand" in message
     )
 
 
@@ -140,11 +171,11 @@ def _run_with_backoff(fn, *, max_retries: int = 3, base_delay: float = 1.0):
         try:
             return fn()
         except Exception as exc:
-            if not _is_rate_limit_error(exc) or attempt == max_retries:
+            if not _is_transient_model_error(exc) or attempt == max_retries:
                 raise
             delay = base_delay * (2**attempt)
             logger.warning(
-                "Gemini rate limited (attempt %d/%d), retrying in %.1fs",
+                "AI provider temporarily unavailable (attempt %d/%d), retrying in %.1fs",
                 attempt + 1,
                 max_retries + 1,
                 delay,
