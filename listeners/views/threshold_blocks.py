@@ -10,6 +10,7 @@ LANGUAGE_OPTIONS = [
     ("pl", "Polski", "🇵🇱"),
     ("pt", "Português", "🇧🇷"),
     ("ro", "Română", "🇷🇴"),
+    ("fa", "فارسی", "🇮🇷"),
 ]
 
 
@@ -56,6 +57,7 @@ def build_welcome_blocks(user_name: str) -> list[dict]:
 
 
 # ── Impact dashboard (Flow F / /threshold-impact) ────────────────────────────
+
 
 def build_impact_blocks(summary: dict) -> list[dict]:
     """Block Kit summary for /threshold-impact."""
@@ -142,6 +144,7 @@ def build_impact_blocks(summary: dict) -> list[dict]:
 
 
 # ── Digest header block ──────────────────────────────────────────────────────
+
 
 def build_digest_header_block(language_name: str) -> dict:
     """Header block prepended to a translated digest DM."""

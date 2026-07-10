@@ -25,6 +25,7 @@ _CONFIRMATIONS = {
     "pl": "Gotowe! Przedstawiłem Cię na #{channel} — zajrzyj tam i przywitaj się.",
     "pt": "Pronto! Apresentei você em #{channel} — passe por lá para dizer olá.",
     "ro": "Gata! Te-am prezentat în #{channel} — intră acolo și salută-i.",
+    "fa": "انجام شد! شما را در #{channel} معرفی کردم — سری بزنید و سلام کنید.",
 }
 
 

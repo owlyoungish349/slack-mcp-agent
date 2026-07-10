@@ -26,9 +26,35 @@ def build_app_home_view(
                     "*Welcome to Cornerstone Community Church!* I help newcomers find "
                     "their place — life groups, English classes, volunteering, and "
                     "community — *in your own language*, no referral needed.\n\n"
-                    "🇬🇧 English · 🇪🇸 Español · 🇸🇦 العربية · 🇵🇱 Polski · 🇧🇷 Português · 🇷🇴 Română"
+                    "🇬🇧 English · 🇪🇸 Español · 🇸🇦 العربية · 🇵🇱 Polski · 🇧🇷 Português · 🇷🇴 Română · 🇮🇷 فارسی"
                 ),
             },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Start chatting",
+                        "emoji": True,
+                    },
+                    "action_id": "start_conversation",
+                    "style": "primary",
+                    "value": "start_conversation",
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Translate text",
+                        "emoji": True,
+                    },
+                    "action_id": "open_translation",
+                    "value": "open_translation",
+                },
+            ],
         },
         {"type": "divider"},
         {

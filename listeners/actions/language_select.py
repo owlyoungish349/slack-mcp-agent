@@ -47,6 +47,12 @@ _GREETINGS: dict[str, str] = {
         "cursuri de engleză, voluntariat sau pur și simplu un loc prietenos pentru început. "
         "Ce cauți?"
     ),
+    "fa": (
+        "عالیه — با شما به فارسی صحبت می‌کنم! 🙏\n\n"
+        "چه چیزی شما را به Cornerstone آورده است؟ می‌توانم به شما کمک کنم گروه‌های "
+        "دوستانه، کلاس‌های انگلیسی، فرصت‌های داوطلبی یا یک جای گرم برای شروع پیدا کنید. "
+        "دنبال چه چیزی هستید؟"
+    ),
 }
 
 
@@ -86,7 +92,9 @@ def handle_language_select(
             ],
         )
 
-        logger.info("Language set to %s (%s) for user %s", lang_name, lang_code, user_id)
+        logger.info(
+            "Language set to %s (%s) for user %s", lang_name, lang_code, user_id
+        )
 
     except (SlackApiError, KeyError) as e:
         logger.exception("Failed to handle language_select: %s", e)

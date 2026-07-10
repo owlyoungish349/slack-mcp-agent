@@ -1,4 +1,5 @@
 from listeners.views.app_home_builder import build_app_home_view
+from listeners.views.threshold_blocks import build_welcome_blocks
 from listeners.views.feedback_builder import build_feedback_blocks
 
 
@@ -56,3 +57,23 @@ def test_build_app_home_view_connected():
     section_texts = _section_texts(view)
     mcp_section = next(t for t in section_texts if "Slack MCP Server" in t)
     assert "connected" in mcp_section
+
+
+def test_home_includes_quick_start_and_translate_actions():
+    view = build_app_home_view(is_connected=True)
+
+    action_ids = [
+        element["action_id"]
+        for block in view["blocks"]
+        if block["type"] == "actions"
+        for element in block["elements"]
+    ]
+    assert "start_conversation" in action_ids
+    assert "open_translation" in action_ids
+
+
+def test_welcome_picker_includes_persian():
+    blocks = build_welcome_blocks("Sam")
+
+    options = blocks[1]["elements"][0]["options"]
+    assert any(option["value"] == "fa|فارسی" for option in options)

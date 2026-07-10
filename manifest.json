@@ -35,6 +35,14 @@
       "display_name": "Threshold",
       "always_online": true
     },
+    "shortcuts": [
+      {
+        "name": "Translate with Threshold",
+        "callback_id": "translate_with_threshold",
+        "description": "Translate this message into your chosen language",
+        "type": "message"
+      }
+    ],
     "slash_commands": [
       {
         "command": "/threshold-welcome",
