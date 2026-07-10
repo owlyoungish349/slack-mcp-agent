@@ -3,9 +3,22 @@ from logging import Logger
 from slack_bolt.context.set_suggested_prompts import SetSuggestedPrompts
 
 SUGGESTED_PROMPTS = [
-    {"title": "Write a Message", "message": "Help me draft a message to my team"},
-    {"title": "Summarize", "message": "Can you help me summarize something?"},
-    {"title": "Brainstorm", "message": "I need help brainstorming ideas"},
+    {
+        "title": "Find a group",
+        "message": "I'd like to meet some people and find a group to join.",
+    },
+    {
+        "title": "Volunteer",
+        "message": "I'd love to help out — what volunteering opportunities are there?",
+    },
+    {
+        "title": "English classes",
+        "message": "Are there any English conversation or language classes?",
+    },
+    {
+        "title": "This week's news",
+        "message": "What's happening at church this week?",
+    },
 ]
 
 
@@ -16,7 +29,7 @@ def handle_assistant_thread_started(
     try:
         set_suggested_prompts(
             prompts=SUGGESTED_PROMPTS,
-            title="How can I help you today?",
+            title="Welcome — how can I help you get connected?",
         )
     except Exception as e:
         logger.exception(f"Failed to handle assistant thread started: {e}")

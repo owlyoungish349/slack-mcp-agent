@@ -12,6 +12,15 @@ def test_build_feedback_blocks():
     assert "feedback" in action_ids
 
 
+def _section_texts(view: dict) -> list[str]:
+    """Texts of all section blocks that carry a text field (skips fields-only sections)."""
+    return [
+        b["text"]["text"]
+        for b in view["blocks"]
+        if b["type"] == "section" and "text" in b
+    ]
+
+
 def test_build_app_home_view_default():
     """Default args (Socket Mode) — shows disconnected status with learn-more link."""
     view = build_app_home_view()
@@ -24,9 +33,7 @@ def test_build_app_home_view_default():
     assert "section" in block_types
 
     # Shows MCP status as disconnected with learn-more link
-    section_texts = [
-        b["text"]["text"] for b in view["blocks"] if b["type"] == "section"
-    ]
+    section_texts = _section_texts(view)
     mcp_section = next(t for t in section_texts if "Slack MCP Server" in t)
     assert "disconnected" in mcp_section
     assert "Learn how to enable" in mcp_section
@@ -36,9 +43,7 @@ def test_build_app_home_view_connect():
     """install_url provided — shows disconnected status with install link."""
     view = build_app_home_view(install_url="https://example.com/slack/install")
 
-    section_texts = [
-        b["text"]["text"] for b in view["blocks"] if b["type"] == "section"
-    ]
+    section_texts = _section_texts(view)
     mcp_section = next(t for t in section_texts if "Slack MCP Server" in t)
     assert "disconnected" in mcp_section
     assert "https://example.com/slack/install" in mcp_section
@@ -48,8 +53,6 @@ def test_build_app_home_view_connected():
     """is_connected=True — shows connected status."""
     view = build_app_home_view(is_connected=True)
 
-    section_texts = [
-        b["text"]["text"] for b in view["blocks"] if b["type"] == "section"
-    ]
+    section_texts = _section_texts(view)
     mcp_section = next(t for t in section_texts if "Slack MCP Server" in t)
     assert "connected" in mcp_section

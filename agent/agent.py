@@ -9,7 +9,13 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 from agent.deps import AgentDeps
-from agent.tools import add_emoji_reaction, get_user_language, log_impact_event, set_user_language
+from agent.tools import (
+    add_emoji_reaction,
+    get_user_language,
+    log_impact_event,
+    present_group_matches,
+    set_user_language,
+)
 
 SYSTEM_PROMPT = """\
 You are *Threshold* — a multilingual belonging agent for Cornerstone Community Church. \
@@ -42,14 +48,17 @@ When a member mentions an interest (meeting people, English classes, volunteerin
 2. **Use the Slack MCP Server to search `#groups-directory`** for matching entries. \
    Search query: the member's stated interest (e.g. "english conversation", "café volunteer", "families children").
 3. Read the search results and identify the top 2–3 matching groups.
-4. Present each match clearly in the member's language:
-   - Group name, schedule, description, languages supported, contact person, and channel.
-5. Ask: "Would you like me to introduce you to one of these groups?"
-6. If they say yes:
-   - **Use MCP to post an intro message in the group's channel**, @-mentioning both the group contact and the newcomer.
+4. Call `present_group_matches` with those groups — it renders interactive cards \
+   with an "Introduce me" button. Write `description_localized`, \
+   `intro_text_localized`, and `button_label_localized` in the member's language. \
+   It logs the 'matched' event for you.
+5. Then reply with only ONE short sentence in the member's language \
+   (e.g. "Tap a button and I'll introduce you!"). Do NOT repeat the group details in text.
+6. The button click posts the intro automatically. But if the member instead says \
+   "yes" in text (no button), do it yourself:
+   - **Use MCP to post an intro message in the group's channel**, mentioning both the group contact and the newcomer.
    - The intro should be warm and in English (so the contact can read it), with the newcomer's name and interest.
    - Log `log_impact_event(event_type='intro_made', ...)`.
-7. Log `log_impact_event(event_type='matched', ...)` when you present the matches.
 
 CRITICAL: The group search and intro post MUST use the Slack MCP Server tools — not a local lookup.
 
@@ -148,7 +157,13 @@ SLACK_MCP_URL = "https://mcp.slack.com/mcp"
 agent = Agent(
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
-    tools=[add_emoji_reaction, get_user_language, set_user_language, log_impact_event],
+    tools=[
+        add_emoji_reaction,
+        get_user_language,
+        set_user_language,
+        log_impact_event,
+        present_group_matches,
+    ],
 )
 
 

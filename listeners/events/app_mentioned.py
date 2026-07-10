@@ -31,7 +31,7 @@ def handle_app_mentioned(
 
         if not cleaned_text:
             say(
-                text="Hey there! How can I help you? Ask me anything and I'll do my best.",
+                text="Hi! I'm Threshold 🙏 Tell me what you're looking for — a group, a class, volunteering — in any language, and I'll help you get connected.",
                 thread_ts=thread_ts,
             )
             return
@@ -40,11 +40,10 @@ def handle_app_mentioned(
         set_status(
             status="Thinking...",
             loading_messages=[
-                "Teaching the hamsters to type faster…",
-                "Untangling the internet cables…",
-                "Consulting the office goldfish…",
-                "Polishing up the response just for you…",
-                "Convincing the AI to stop overthinking…",
+                "Looking through our groups…",
+                "Finding the right people for you…",
+                "Checking what's on this week…",
+                "Putting together something helpful…",
             ],
         )
 

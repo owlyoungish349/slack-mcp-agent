@@ -144,7 +144,7 @@ def post_if_empty(client: WebClient, channel_id: str, messages: list[str]) -> No
     try:
         resp = client.conversations_history(channel=channel_id, limit=5)
         if resp["messages"]:
-            print(f"    ℹ Channel already has content — skipping posts")
+            print("    ℹ Channel already has content — skipping posts")
             return
     except SlackApiError:
         pass

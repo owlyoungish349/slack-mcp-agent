@@ -117,7 +117,7 @@ def build_impact_blocks(summary: dict) -> list[dict]:
                 },
                 {
                     "type": "mrkdwn",
-                    "text": f"*❌ Referrals needed*\n0 ✅",
+                    "text": "*❌ Referrals needed*\n0 ✅",
                 },
             ],
         },

@@ -14,7 +14,8 @@ def build_app_home_view(
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": "Hey there :wave: I'm your Slack assistant.",
+                "text": "Threshold 🙏 — your guide to belonging",
+                "emoji": True,
             },
         },
         {
@@ -22,11 +23,34 @@ def build_app_home_view(
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    "I'm here to help! You can ask me questions, have a conversation, "
-                    "or ask me to do things in Slack.\n\n"
-                    "Send me a *direct message* or *mention me in a channel* to get started."
+                    "*Welcome to Cornerstone Community Church!* I help newcomers find "
+                    "their place — life groups, English classes, volunteering, and "
+                    "community — *in your own language*, no referral needed.\n\n"
+                    "🇬🇧 English · 🇪🇸 Español · 🇸🇦 العربية · 🇵🇱 Polski · 🇧🇷 Português · 🇷🇴 Română"
                 ),
             },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*💬 Message me*\nTell me what you're looking for — in any language — and I'll find matching groups.",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*🤝 Get introduced*\nTap *Introduce me* on a group card and I'll connect you with a real person.",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*📢 `/threshold-digest`*\nThis week's announcements, translated into your language.",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*📊 `/threshold-impact`*\nSee how many people Threshold has helped get connected.",
+                },
+            ],
         },
         {"type": "divider"},
     ]

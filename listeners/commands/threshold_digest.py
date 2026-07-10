@@ -7,7 +7,6 @@ DMs it to them.
 If no opted-in members exist yet, it sends a preview to the command caller.
 """
 
-import os
 from logging import Logger
 
 from slack_bolt import Ack, BoltContext, Respond
