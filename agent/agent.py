@@ -100,7 +100,7 @@ _cached_model: str | Model | None = None
 # GEMINI_API_KEY. Both are set in .env to be safe across versions.
 GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 GEMINI_FALLBACK_MODEL_NAME = os.environ.get(
-    "GEMINI_FALLBACK_MODEL_NAME", "gemini-2.5-flash-lite"
+    "GEMINI_FALLBACK_MODEL_NAME", "gemini-3.1-flash-lite"
 )
 GITHUB_MODELS_URL = "https://models.github.ai/inference"
 GITHUB_MODELS_MODEL = os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4.1")

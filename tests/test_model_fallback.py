@@ -26,7 +26,7 @@ def test_google_configures_primary_and_same_key_fallback(monkeypatch):
     assert isinstance(model, FallbackModel)
     assert [configured.model_name for configured in model.models] == [
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
     ]
 
 
@@ -40,7 +40,7 @@ def test_github_models_is_added_as_tertiary_fallback(monkeypatch):
     assert isinstance(model, FallbackModel)
     assert [configured.model_name for configured in model.models] == [
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
         "openai/gpt-4.1",
     ]
 
