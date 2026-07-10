@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from slack_bolt import BoltContext
 from slack_sdk import WebClient
@@ -26,6 +26,20 @@ class TestAppHomeOpened:
         kwargs = self.fake_client.views_publish.call_args.kwargs
         assert kwargs["user_id"] == "U123"
         assert kwargs["view"]["type"] == "home"
+
+    @patch("listeners.events.app_home_opened.get_user_token", return_value="xoxp-test")
+    def test_marks_mcp_connected_when_configured_token_is_available(self, _token):
+        handle_app_home_opened(
+            client=self.fake_client,
+            context=self.fake_context,
+            logger=test_logger,
+        )
+
+        view = self.fake_client.views_publish.call_args.kwargs["view"]
+        status_texts = [
+            block.get("text", {}).get("text", "") for block in view["blocks"]
+        ]
+        assert any("Slack MCP Server is connected." in text for text in status_texts)
 
     def test_views_publish_exception(self, caplog):
         self.fake_client.views_publish.side_effect = Exception("test exception")
