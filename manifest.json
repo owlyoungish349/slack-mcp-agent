@@ -45,13 +45,11 @@
       {
         "command": "/threshold-digest",
         "description": "Send a translated announcement digest to opted-in members",
-        "usage_hint": "",
         "should_escape": false
       },
       {
         "command": "/threshold-impact",
         "description": "Show the Threshold impact dashboard",
-        "usage_hint": "",
         "should_escape": false
       }
     ]
