@@ -2,8 +2,11 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 from listeners.actions.accept_intro import (
+    _FAILURES,
+    _INTRODUCING,
     _build_intro_message,
     _confirmation,
+    _localized,
     handle_accept_intro,
 )
 
@@ -38,6 +41,11 @@ def test_build_intro_message_mentions_newcomer_and_names_contact():
 def test_confirmation_uses_saved_language():
     assert "¡Listo!" in _confirmation("es", "cafe-volunteers")
     assert "#cafe-volunteers" in _confirmation("es", "cafe-volunteers")
+
+
+def test_persian_progress_and_failure_feedback_are_localized():
+    assert "در حال معرفی" in _localized(_INTRODUCING, "fa", group="گروه")
+    assert "نتوانستم" in _localized(_FAILURES, "fa")
 
 
 @patch(

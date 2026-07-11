@@ -8,6 +8,7 @@ via MCP in the group's channel.
 """
 
 import json
+import logging
 
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
@@ -16,20 +17,105 @@ from slack_sdk.errors import SlackApiError
 from agent.deps import AgentDeps
 from store import user_store
 
+logger = logging.getLogger(__name__)
+
 
 class GroupMatch(BaseModel):
     """One matched group from the #groups-directory search."""
 
     group_name: str = Field(description="Group name, e.g. 'Café Volunteering'")
-    emoji: str = Field(default="🤝", description="One emoji that fits the group, e.g. '☕'")
+    emoji: str = Field(
+        default="🤝", description="One emoji that fits the group, e.g. '☕'"
+    )
     schedule: str = Field(description="When it meets, e.g. 'Sundays 9:30–12:00'")
     location: str = Field(default="", description="Where it meets, e.g. 'Church Café'")
-    languages: str = Field(default="", description="Languages supported, e.g. 'All languages welcome'")
-    contact: str = Field(description="Contact person's name/handle from the directory, e.g. 'james-t'")
-    channel: str = Field(description="The group's channel name WITHOUT '#', e.g. 'cafe-volunteers'")
+    languages: str = Field(
+        default="", description="Languages supported, e.g. 'All languages welcome'"
+    )
+    contact: str = Field(
+        description="Contact person's name/handle from the directory, e.g. 'james-t'"
+    )
+    channel: str = Field(
+        description="The group's channel name WITHOUT '#', e.g. 'cafe-volunteers'"
+    )
     description_localized: str = Field(
         description="1–2 sentence description of the group, written in the USER'S preferred language"
     )
+
+
+def _public_channels(client) -> dict[str, str]:
+    """Return public channel names mapped to IDs, following Slack pagination."""
+    channels: dict[str, str] = {}
+    cursor = None
+    while True:
+        response = client.conversations_list(
+            types="public_channel",
+            exclude_archived=True,
+            limit=200,
+            cursor=cursor,
+        )
+        for channel in response.get("channels", []):
+            name = channel.get("name")
+            channel_id = channel.get("id")
+            if name and channel_id:
+                channels[name] = channel_id
+        cursor = response.get("response_metadata", {}).get("next_cursor")
+        if not cursor:
+            return channels
+
+
+def _directory_messages(client, channel_id: str) -> list[str]:
+    """Read the group directory records used to ground match cards."""
+    messages: list[str] = []
+    cursor = None
+    while True:
+        response = client.conversations_history(
+            channel=channel_id,
+            limit=200,
+            cursor=cursor,
+        )
+        messages.extend(
+            message.get("text", "").casefold()
+            for message in response.get("messages", [])
+        )
+        cursor = response.get("response_metadata", {}).get("next_cursor")
+        if not cursor:
+            return messages
+
+
+def _verified_matches(client, matches: list[GroupMatch]) -> list[GroupMatch]:
+    """Keep only matches whose channel/contact pair exists in one directory record."""
+    try:
+        channels = _public_channels(client)
+        directory_id = channels.get("groups-directory")
+        if not directory_id:
+            logger.error("Cannot validate matches: #groups-directory does not exist")
+            return []
+        records = _directory_messages(client, directory_id)
+    except SlackApiError as exc:
+        logger.exception("Could not validate group matches against Slack: %s", exc)
+        return []
+
+    verified: list[GroupMatch] = []
+    for match in matches[:3]:
+        channel = match.channel.removeprefix("#").casefold()
+        contact = match.contact.removeprefix("@").casefold()
+        channel_marker = f"#{channel}"
+        contact_marker = f"@{contact}"
+        grounded = channel in channels and any(
+            channel_marker in record and contact_marker in record for record in records
+        )
+        if grounded:
+            match.channel = channel
+            verified.append(match)
+        else:
+            logger.warning(
+                "Rejected ungrounded group match: group=%r contact=%r channel=%r",
+                match.group_name,
+                match.contact,
+                match.channel,
+            )
+    return verified
 
 
 async def present_group_matches(
@@ -61,6 +147,13 @@ async def present_group_matches(
     if not matches:
         return "No matches to present — tell the user nothing was found and suggest alternatives."
 
+    matches = _verified_matches(deps.client, matches)
+    if not matches:
+        return (
+            "No verified directory matches were found. Tell the user you could not find "
+            "an exact current group and suggest trying another interest. Do not invent one."
+        )
+
     blocks: list[dict] = [
         {
             "type": "section",
@@ -72,7 +165,10 @@ async def present_group_matches(
     for match in matches[:3]:
         details = [f"*{match.emoji} {match.group_name}*"]
         if match.schedule:
-            details.append(f"📅 {match.schedule}" + (f"  ·  🏠 {match.location}" if match.location else ""))
+            details.append(
+                f"📅 {match.schedule}"
+                + (f"  ·  🏠 {match.location}" if match.location else "")
+            )
         if match.languages:
             details.append(f"🌍 {match.languages}")
         details.append(f"👤 {match.contact}  ·  📢 #{match.channel}")

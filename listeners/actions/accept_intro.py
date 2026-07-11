@@ -28,6 +28,26 @@ _CONFIRMATIONS = {
     "fa": "انجام شد! شما را در #{channel} معرفی کردم — سری بزنید و سلام کنید.",
 }
 
+_INTRODUCING = {
+    "en": "🤝 Introducing you to *{group}*…",
+    "es": "🤝 Presentándote a *{group}*…",
+    "ar": "🤝 جارٍ تقديمك إلى *{group}*…",
+    "pl": "🤝 Przedstawiam Cię grupie *{group}*…",
+    "pt": "🤝 Apresentando você a *{group}*…",
+    "ro": "🤝 Te prezint grupului *{group}*…",
+    "fa": "🤝 در حال معرفی شما به *{group}*…",
+}
+
+_FAILURES = {
+    "en": "⚠️ I couldn't post the introduction just now — please try the button again in a moment.",
+    "es": "⚠️ No pude publicar la presentación ahora mismo. Vuelve a intentarlo en un momento.",
+    "ar": "⚠️ لم أتمكن من نشر التعريف الآن. يُرجى المحاولة مرة أخرى بعد قليل.",
+    "pl": "⚠️ Nie udało mi się teraz opublikować przedstawienia. Spróbuj ponownie za chwilę.",
+    "pt": "⚠️ Não consegui publicar a apresentação agora. Tente novamente em instantes.",
+    "ro": "⚠️ Nu am putut publica prezentarea acum. Încearcă din nou peste puțin timp.",
+    "fa": "⚠️ فعلاً نتوانستم معرفی را ارسال کنم. لطفاً کمی بعد دوباره تلاش کنید.",
+}
+
 
 def _find_channel_id(client: WebClient, channel_name: str) -> str | None:
     """Resolve a public channel name to its Slack channel ID."""
@@ -71,6 +91,11 @@ def _confirmation(language_code: str, channel: str) -> str:
     return template.format(channel=channel)
 
 
+def _localized(mapping: dict[str, str], language_code: str, **values: str) -> str:
+    template = mapping.get(language_code, mapping["en"])
+    return template.format(**values)
+
+
 def handle_accept_intro(
     ack: Ack,
     body: dict,
@@ -97,7 +122,7 @@ def handle_accept_intro(
             channel=channel_id,
             user=user_id,
             thread_ts=thread_ts,
-            text=f"🤝 Introducing you to *{payload['group']}*…",
+            text=_localized(_INTRODUCING, lang_code, group=payload["group"]),
         )
     except SlackApiError:
         pass  # ephemeral feedback is best-effort
@@ -146,7 +171,7 @@ def handle_accept_intro(
                 channel=channel_id,
                 user=user_id,
                 thread_ts=thread_ts,
-                text="⚠️ I couldn't post the introduction just now — please try the button again in a moment.",
+                text=_localized(_FAILURES, lang_code),
             )
         except SlackApiError:
             pass
