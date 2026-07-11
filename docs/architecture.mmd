@@ -4,41 +4,91 @@
   "primaryTextColor": "#1a2733",
   "lineColor": "#4a6785",
   "fontFamily": "Segoe UI, Helvetica, Arial, sans-serif",
-  "fontSize": "15px"
+  "fontSize": "16px"
 }}}%%
 flowchart LR
-    subgraph SLACK["Slack sandbox workspace"]
+
+    %% ── 1. Slack entry points ─────────────────────────────────────────────────
+    subgraph ENTRY["Slack sandbox — entry points"]
         direction TB
-        MEMBERS["👥 Members & judges<br/>(DMs · @mentions · slash commands)"]
-        DIR["📂 #groups-directory<br/>(searchable group entries)"]
-        ANN["📢 #announcements"]
-        GRP["🤝 Group channels<br/>(#cafe-volunteers, #english-circle, …)"]
+        JOIN["🚪 member_joined_channel\nauto-welcome · once per user"]
+        DM["💬 DMs and @mentions\nmembers · judges"]
+        CMDS["🔧 Slash commands\n/threshold-welcome @user\n/threshold-digest\n/threshold-impact"]
+        SHORT["⚡ Translate with Threshold\nmessage shortcut"]
     end
 
-    MCP["🔌 Slack MCP Server<br/>mcp.slack.com<br/><i>search · read · post</i>"]
-
-    subgraph DO["DigitalOcean droplet (LON1) — Docker, restart=always"]
+    %% ── 2. Fly.io worker ──────────────────────────────────────────────────────
+    subgraph FLY["Fly.io · lhr · shared-cpu-1x / 512 MB · autostop = OFF"]
         direction TB
-        BOLT["⚡ Bolt for Python<br/>listeners: events · commands · actions<br/>(Block Kit responses via Web API)"]
-        AGENT["🧠 Pydantic AI Agent<br/><i>Threshold system prompt + tools</i>"]
-        TOOLS["🛠 Local tools<br/>language prefs · impact events<br/>match cards · reactions"]
-        DB[("💾 SQLite impact store<br/>bind-mount /opt/threshold/data → /data<br/><i>survives rebuilds & reboots</i>")]
-        BOLT -->|"run_agent()"| AGENT
-        AGENT --> TOOLS
-        TOOLS --> DB
+
+        subgraph BOLTBOX["Bolt for Python — Socket Mode (outbound WebSocket, no open ports)"]
+            direction LR
+            EVT["📡 Events\nmember_joined_channel\napp_mention · message"]
+            CMD["🔧 Commands\n/threshold-welcome\n/threshold-digest\n/threshold-impact"]
+            ACT["🎛 Actions\nlanguage_select\nfeedback_buttons"]
+        end
+
+        AGENT["🧠 Pydantic AI Agent · Threshold system prompt\nFlow A: welcome + language picker, store pref in SQLite\nFlow B: MCP search groups, match, MCP post intro\nFlow C: MCP read announcements, translate, DM digest"]
+
+        subgraph TOOLBOX["agent/tools/"]
+            direction LR
+            TOOLS["get_user_language · set_user_language\nlog_impact_event · add_emoji_reaction"]
+        end
+
+        VIEWS["🎨 Block Kit\nbuild_welcome_blocks\nbuild_impact_blocks\nbuild_digest_header_block\n(sent via Slack Web API)"]
+
+        subgraph FLYDATA["Fly Volume /data · 1 GB · persists across restarts and redeploys"]
+            DB[("💾 SQLite — threshold.db\nuser_preferences: user_id · language · opted_in_digest\nevents: welcomed · language_set · matched · intro_made · digest_sent")]
+        end
+
+        EVT --> AGENT
+        CMD --> AGENT
+        ACT --> AGENT
+        AGENT --> TOOLBOX
+        TOOLBOX --> DB
+        EVT --> VIEWS
+        CMD --> VIEWS
+        ACT --> VIEWS
     end
 
-    GEMINI["✨ Google Gemini 2.5 Flash<br/><i>reasoning · translation<br/>429 backoff built in</i>"]
+    %% ── 3. External services ──────────────────────────────────────────────────
+    GEMINI["✨ Google Gemini 2.5 Flash\nreasoning · translation · group matching\n429 backoff x3 built in"]
 
-    MEMBERS <-->|"Socket Mode WebSocket<br/>(outbound only — no inbound ports)"| BOLT
-    AGENT <-->|"LLM calls"| GEMINI
-    AGENT <-->|"MCP over HTTP<br/>(user-token auth)"| MCP
-    MCP -->|"search directory"| DIR
-    MCP -->|"read announcements"| ANN
-    MCP -->|"post intro, tagging<br/>contact + newcomer"| GRP
+    MCP["🔌 Slack MCP Server\nmcp.slack.com/mcp\nsearch · read · post\nauth: SLACK_USER_TOKEN"]
 
-    style SLACK fill:#f5ecdf,stroke:#8a6d3b,stroke-width:2px
-    style DO fill:#e8f0e8,stroke:#2e6b34,stroke-width:2px
-    style MCP fill:#fdeaea,stroke:#a33c3c,stroke-width:3px
-    style GEMINI fill:#eae6f7,stroke:#5b4a8a,stroke-width:2px
-    style DB fill:#fff8e1,stroke:#8a6d3b
+    LANG["🌍 7 languages\nEN · ES · AR · PL\nPT · RO · FA\nlanguage picker in welcome DM\npref stored in SQLite"]
+
+    %% ── 4. Slack content channels ─────────────────────────────────────────────
+    subgraph CONTENT["Slack sandbox — channels (seeded by seed/seed_workspace.py)"]
+        direction TB
+        DIR["📂 #groups-directory\n6 entries: english-circle · café\nfamilies · prayer · arabic · new-members"]
+        ANN["📢 #announcements\n4 sample entries"]
+        GRP["🤝 Group channels\n#cafe-volunteers · #english-circle\n#prayer-group · #family-group"]
+    end
+
+    %% ── Connections ───────────────────────────────────────────────────────────
+    JOIN      -->|"Flow A: auto-welcome"| EVT
+    DM       <-->|"Socket Mode WebSocket"| EVT
+    CMDS      -->|"slash command"| CMD
+    SHORT     -->|"shortcut action"| ACT
+
+    AGENT    <-->|"LLM inference"| GEMINI
+    AGENT    <-->|"MCP over HTTPS"| MCP
+
+    MCP       -->|"Flow B: search groups"| DIR
+    MCP       -->|"Flow C: read announcements"| ANN
+    MCP       -->|"Flow B: post intro @contact + @newcomer"| GRP
+
+    AGENT     --- LANG
+
+    %% ── Styles ────────────────────────────────────────────────────────────────
+    style ENTRY   fill:#f5ecdf,stroke:#8a6d3b,stroke-width:2px
+    style FLY     fill:#e8f0e8,stroke:#2e6b34,stroke-width:2px
+    style BOLTBOX fill:#d9ead3,stroke:#4a7c59,stroke-width:1px
+    style TOOLBOX fill:#d9ead3,stroke:#4a7c59,stroke-width:1px
+    style FLYDATA fill:#fff8e1,stroke:#8a6d3b,stroke-width:1px
+    style CONTENT fill:#f5ecdf,stroke:#8a6d3b,stroke-width:2px
+    style MCP     fill:#fdeaea,stroke:#a33c3c,stroke-width:3px
+    style GEMINI  fill:#eae6f7,stroke:#5b4a8a,stroke-width:2px
+    style DB      fill:#fff8e1,stroke:#8a6d3b
+    style LANG    fill:#f0f7ff,stroke:#4a6785,stroke-width:1px
