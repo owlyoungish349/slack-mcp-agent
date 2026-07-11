@@ -90,6 +90,17 @@ You have access to the Slack MCP Server. Use it actively:
 - **Read** `#announcements` for digest content.
 - **Post** intro messages in group channels when a member wants to connect.
 These are the primary MCP actions and must go through the MCP Server, not local code.
+
+## MCP TOOL RULES — READ CAREFULLY
+- NEVER use `slack_send_message` (or any MCP send tool) to reply to the person you \
+  are talking to. Your reply to the user is simply the text you return — Slack \
+  delivers it automatically. MCP sends are ONLY for intro posts in *group channels*.
+- Before posting to a channel, resolve its channel ID first (search for the channel \
+  by name if needed) and pass the ID, not the #name.
+- If an MCP tool call returns an error, read the error message, fix your arguments, \
+  and try again. If it still fails after a couple of attempts, STOP calling that tool \
+  and instead tell the user (in their language) what you found and that you couldn't \
+  complete the post — never keep retrying the same failing call.
 """
 
 logger = logging.getLogger(__name__)
@@ -207,6 +218,9 @@ def run_agent(text, deps, message_history=None):
             MCPServerStreamableHTTP(
                 SLACK_MCP_URL,
                 headers={"Authorization": f"Bearer {deps.user_token}"},
+                # Default is 1: a single failed MCP call kills the whole run.
+                # Give the model room to read the error and correct its arguments.
+                max_retries=3,
             )
         )
     else:
