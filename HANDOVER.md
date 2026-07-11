@@ -18,7 +18,7 @@ human introduction without already knowing the right person, and can now also sp
 the group in their own language.
 
 **Current state:** everything is committed, pushed, and deployed. The Droplet runs
-revision `98f5f8f` with an active Socket Mode session. Major feature/fix sets shipped since
+revision `fb0f135` with an active Socket Mode session. Major feature/fix sets shipped since
 the previous (10 July) handover:
 
 1. `daa63de` — Persian language support and on-demand inbound translation
@@ -29,6 +29,8 @@ the previous (10 July) handover:
    for ordinary assistant replies.
 4. `98f5f8f` — hard grounding for match cards after a Persian test exposed two invented
    groups and non-existent destination channels.
+5. `fb0f135` — preference-aware search broadening: if a day/time-specific query has no
+   result, retry the member's core interest and offer the closest real group.
 
 The duplicate slash-command problem from the previous handover has resolved (details in
 §12). Remaining manual work is Slack-side verification only (§11, §13).
@@ -195,6 +197,7 @@ memorizing commands.
 
 Important commits, newest first:
 
+- `fb0f135` — broaden group searches beyond optional schedule preferences
 - `98f5f8f` — reject ungrounded group cards; localize Persian intro progress/failure feedback
 - `0ef2783` — architecture and handover updated to the current project state
 - `cf3eb42` — improve MCP tool retry behavior and forbid MCP sends for ordinary replies
@@ -213,7 +216,7 @@ Important commits, newest first:
 - `a726d24` — remove invalid empty slash-command usage hints
 - `a586fcb` — Docker/DigitalOcean deployment safety and persistent storage documentation
 
-The live container runs `98f5f8f`. Its 11 July deployment was verified with a fresh Socket
+The live container runs `fb0f135`. Its 11 July deployment was verified with a fresh Socket
 Mode session and `Bolt app is running!` in the logs. The local working tree is clean and
 identical to `origin/main`.
 
@@ -252,10 +255,11 @@ Verified during the 11 July session:
   prompt also forbids invented group details. Persian progress and failure feedback are now
   localized. Ruff passed and the full suite increased to 39 passing tests.
 
-**Still to verify in Slack:** retry the Persian Sunday-volunteering request after `98f5f8f`;
-it should offer only real directory groups such as Café Volunteering rather than inventing
-new channels. The translation modals and Write to a group flow also still need final client
-verification. The §13 checklist covers them.
+**Still to verify in Slack:** retry the Persian Sunday-volunteering request after `fb0f135`;
+it should broaden from the optional Sunday preference to the core volunteering interest and
+offer only real directory groups such as Café Volunteering. The translation modals and
+Write to a group flow also still need final client verification. The §13 checklist covers
+them.
 
 ## 8. What happened in the 11 July Claude Code session
 
@@ -275,6 +279,11 @@ verification. The §13 checklist covers them.
    confirmed the only canonical group channels are the seeded channels. Added prompt-level
    and tool-level grounding, localized status messages, two matchmaker regression tests,
    and deployed `98f5f8f` with 39 passing tests.
+7. **Broadened optional-preference matching.** The first grounded retry correctly refused
+   to invent a Sunday group but stopped too early. `fb0f135` now instructs the agent to
+   translate directory search keywords into English, separate the core interest from
+   day/time preferences, retry the core interest and related category synonyms, then show
+   the closest real result with its actual schedule. The suite increased to 40 passing tests.
 
 Files changed in `39136a3`:
 
