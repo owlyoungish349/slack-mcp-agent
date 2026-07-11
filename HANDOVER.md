@@ -18,13 +18,17 @@ human introduction without already knowing the right person, and can now also sp
 the group in their own language.
 
 **Current state:** everything is committed, pushed, and deployed. The Droplet runs
-revision `39136a3` with an active Socket Mode session. Two feature sets shipped since the
-previous (10 July) handover:
+revision `98f5f8f` with an active Socket Mode session. Major feature/fix sets shipped since
+the previous (10 July) handover:
 
 1. `daa63de` — Persian language support and on-demand inbound translation
    (the set that was stuck uncommitted in the Codex environment).
 2. `39136a3` — **Write to a group**: compose a message in any language from App Home and
    Threshold posts it in English to a chosen channel with attribution.
+3. `cf3eb42` — stronger MCP retry instructions and a guard against using MCP send tools
+   for ordinary assistant replies.
+4. `98f5f8f` — hard grounding for match cards after a Persian test exposed two invented
+   groups and non-existent destination channels.
 
 The duplicate slash-command problem from the previous handover has resolved (details in
 §12). Remaining manual work is Slack-side verification only (§11, §13).
@@ -191,6 +195,9 @@ memorizing commands.
 
 Important commits, newest first:
 
+- `98f5f8f` — reject ungrounded group cards; localize Persian intro progress/failure feedback
+- `0ef2783` — architecture and handover updated to the current project state
+- `cf3eb42` — improve MCP tool retry behavior and forbid MCP sends for ordinary replies
 - `39136a3` — write to a group in your own language (App Home button, modal, deterministic
   MCP post with attribution, localized confirmations, 4 new tests)
 - `daa63de` — Persian and on-demand translation (the previously pending set; also added
@@ -206,9 +213,9 @@ Important commits, newest first:
 - `a726d24` — remove invalid empty slash-command usage hints
 - `a586fcb` — Docker/DigitalOcean deployment safety and persistent storage documentation
 
-The live container runs `39136a3`. Both deploys on 11 July were verified with a fresh
-Socket Mode session and `Bolt app is running!` in the logs. The local working tree is
-clean and identical to `origin/main`.
+The live container runs `98f5f8f`. Its 11 July deployment was verified with a fresh Socket
+Mode session and `Bolt app is running!` in the logs. The local working tree is clean and
+identical to `origin/main`.
 
 ## 7. Verified end-to-end behavior
 
@@ -235,10 +242,20 @@ Verified during the 11 July session:
 - Local validation for both commits: ruff clean, full pytest suite passing
   (32 tests at `daa63de`, 36 at `39136a3`), `manifest.json` valid, `git diff --check`
   clean.
+- Persian selection and the Persian conversation flow were exercised successfully in
+  Slack. A request to volunteer on Sundays exposed model hallucination: the model rendered
+  `#sunday-service-setup` and `#welcome-team`, neither of which exists in the workspace or
+  canonical `#groups-directory` data.
+- `98f5f8f` added a deterministic validation layer: a match card is now rendered only when
+  its public destination channel exists and the same channel/contact pair appears in one
+  real `#groups-directory` record. Invalid matches are dropped and never logged. The agent
+  prompt also forbids invented group details. Persian progress and failure feedback are now
+  localized. Ruff passed and the full suite increased to 39 passing tests.
 
-**Not yet verified:** the Persian UI flows, the translation modals, and the new Write to a
-group flow have been deployed but not yet exercised in the Slack client. The §13 checklist
-covers them.
+**Still to verify in Slack:** retry the Persian Sunday-volunteering request after `98f5f8f`;
+it should offer only real directory groups such as Café Volunteering rather than inventing
+new channels. The translation modals and Write to a group flow also still need final client
+verification. The §13 checklist covers them.
 
 ## 8. What happened in the 11 July Claude Code session
 
@@ -251,6 +268,13 @@ covers them.
 4. **Built, tested, committed (`39136a3`), pushed, and deployed the Write to a group
    feature** at the operator's request ("I want to write in for example Persian and it
    would translate it back in English and send it to the group").
+5. **Redeployed operator changes through `0ef2783`.** Verified 36 tests, persistent data,
+   restart policy, bind mount, and a fresh Socket Mode connection.
+6. **Diagnosed and fixed fabricated Persian group cards.** Live logs showed the intro failed
+   before MCP with `Could not resolve #sunday-service-setup`. Direct Slack API inspection
+   confirmed the only canonical group channels are the seeded channels. Added prompt-level
+   and tool-level grounding, localized status messages, two matchmaker regression tests,
+   and deployed `98f5f8f` with 39 passing tests.
 
 Files changed in `39136a3`:
 
@@ -411,6 +435,9 @@ Conversation-memory test:
 
 - The operator token architecture is single-workspace and requires operator membership in
   every destination channel (intros **and** Write to a group posts).
+- Match cards are deliberately fail-closed: if Threshold cannot read `#groups-directory`
+  or validate a channel/contact pair, it will show no card instead of risking an invented
+  or broken introduction target.
 - Write to a group only offers public channels (native `channels_select`), fixes the
   target language to English, and its modal chrome is English-only; the message content
   can be any language.
