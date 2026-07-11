@@ -1,6 +1,6 @@
 # Threshold — Engineering and Deployment Handover
 
-Last updated: 10 July 2026 (Europe/London)
+Last updated: 11 July 2026 (Europe/London)
 
 ## 1. Executive summary
 
@@ -8,17 +8,26 @@ Threshold is a multilingual Slack belonging agent for a synthetic church communi
 Cornerstone Community Church. It welcomes newcomers, stores their preferred language,
 searches a Slack-hosted group directory through the Slack MCP Server, renders interactive
 group cards, and introduces a newcomer to a real contact in the selected group channel.
-It also creates translated announcement digests and shows an impact dashboard.
+It also creates translated announcement digests, offers on-demand translation in both
+directions, and shows an impact dashboard.
 
 The project is being prepared for the Slack Agent Builder Challenge, primarily as a
 Slack Agent for Good. The strongest demo story is reducing language and referral barriers
-for newcomers: a Spanish-speaking newcomer can go from a welcome DM to a real human
-introduction without already knowing the right person.
+for newcomers: a Spanish- or Persian-speaking newcomer can go from a welcome DM to a real
+human introduction without already knowing the right person, and can now also speak *to*
+the group in their own language.
 
-The production-style Droplet deployment is healthy on the last committed revision,
-`d094c35`. A newer Persian/translation/UI change set is complete and tested locally but
-is **not committed, pushed, or deployed** because the resumed Codex environment mounted
-`.git` read-only and blocked outbound SSH.
+**Current state:** everything is committed, pushed, and deployed. The Droplet runs
+revision `39136a3` with an active Socket Mode session. Two feature sets shipped since the
+previous (10 July) handover:
+
+1. `daa63de` — Persian language support and on-demand inbound translation
+   (the set that was stuck uncommitted in the Codex environment).
+2. `39136a3` — **Write to a group**: compose a message in any language from App Home and
+   Threshold posts it in English to a chosen channel with attribution.
+
+The duplicate slash-command problem from the previous handover has resolved (details in
+§12). Remaining manual work is Slack-side verification only (§11, §13).
 
 ## 2. Canonical identities and infrastructure
 
@@ -31,11 +40,12 @@ is **not committed, pushed, or deployed** because the resumed Codex environment 
 - Droplet secrets file: `/opt/threshold/.env`
 - Persistent Droplet data: `/opt/threshold/data`
 - Docker container name: `threshold`
-- Docker image alias: `threshold:latest`
+- Docker image alias: `threshold:latest` (also tagged per-commit, e.g. `threshold:39136a3`)
 
-There is an older Slack app, `threshold-agent`, with app ID `A0BDRQ01S79`. It is the
-probable source of duplicate `/threshold-welcome`, `/threshold-digest`, and
-`/threshold-impact` suggestions. Do not delete the current `A0BGHDR0NLA` app.
+There is an older Slack developer app, `threshold-agent`, with app ID `A0BDRQ01S79`. It was
+the suspected source of duplicate slash-command suggestions; the duplicates have since
+disappeared (§12). If the old developer app still exists at api.slack.com, delete it only
+after the final demo is confirmed working. Do not delete the current `A0BGHDR0NLA` app.
 
 ## 3. Secret handling
 
@@ -70,7 +80,10 @@ Main flow:
 4. Group cards are rendered with Block Kit and an `accept_intro` button.
 5. The intro action deterministically calls Slack MCP to post the introduction, then logs
    impact only after the MCP call succeeds.
-6. SQLite is written under `/data` in the container, bind-mounted to
+6. The **Write to a group** action (`listeners/actions/group_message.py`) follows the same
+   deterministic pattern: translate to English, post via MCP `slack_send_message`, log
+   `message_posted` only after success, then confirm privately in the user's language.
+7. SQLite is written under `/data` in the container, bind-mounted to
    `/opt/threshold/data` on the Droplet.
 
 See `docs/architecture.mmd`, `docs/architecture.png`, and `DEMO.md` for the visual design
@@ -123,14 +136,45 @@ GitHub Models is a useful hackathon backup, not an unlimited production tier.
 
 ### Translation is on demand
 
-The pending translation feature deliberately does not auto-translate every workspace
-message. Automatic translation would create noise, privacy concerns, and unnecessary model
-usage. Instead, a user explicitly chooses **Translate text** from App Home or
-**Translate with Threshold** from a message menu. The translated result is delivered
-privately in the user's Threshold DM.
+The translation feature deliberately does not auto-translate every workspace message.
+Automatic translation would create noise, privacy concerns, and unnecessary model usage.
+Instead, a user explicitly chooses **Translate text** from App Home or **Translate with
+Threshold** from a message menu. The translated result is delivered privately in the
+user's Threshold DM.
 
 The translator preserves names, links, Slack mentions, formatting, and meaning. It follows
 the existing product constraint not to translate scripture or liturgical text.
+
+### Write to a group — outbound translation (new, `39136a3`)
+
+The inbound translator lets a newcomer *understand* the community privately. The operator
+asked for the reverse: write in Persian (or any language) and have it delivered to a group
+in English. Design decisions and reasoning:
+
+- **Entry point is a third App Home button, "Write to a group",** opening a modal with a
+  multiline message input and a channel picker. This keeps the deterministic, demoable UI
+  pattern rather than relying on free-form agent conversation.
+- **The target language is fixed to English.** Destination groups operate in English; a
+  target-language selector would add a decision the newcomer does not need to make. The
+  source language is whatever they type — no selector needed there either, the translator
+  handles it.
+- **The channel picker is Slack's native `channels_select` element** (public channels).
+  This avoids an MCP round trip to enumerate channels and returns a channel ID directly,
+  so no name-to-ID resolution is needed.
+- **Posting reuses the deterministic MCP pattern from `accept_intro.py`:** direct
+  `slack_send_message` call with the operator token, and a new `message_posted` event is
+  logged **only after** the MCP call succeeds — consistent with the trustworthy-dashboard
+  principle. On failure the user gets an error DM and nothing is logged.
+- **Attribution is explicit.** The channel post reads
+  `🌐 <@user> says (translated by Threshold): <english text>` so the group knows who is
+  speaking and that Threshold translated on their behalf.
+- **Confirmation is private and localized** in all seven supported languages, mirroring
+  the intro-confirmation pattern.
+- **`message_posted` is stored in SQLite but intentionally not yet surfaced on the impact
+  dashboard.** The dashboard schema was left unchanged this close to the deadline; the
+  data is being collected for a later metric.
+- **No manifest change was needed.** App Home buttons and modals are not app-config
+  surface, so this feature deployed with code only.
 
 ### Product name and command surface
 
@@ -143,10 +187,14 @@ Do not rename all slash commands immediately before submission. They are operato
 newcomers should use conversation, cards, App Home buttons, and shortcuts instead of
 memorizing commands.
 
-## 6. Work already committed and deployed
+## 6. Work committed and deployed
 
 Important commits, newest first:
 
+- `39136a3` — write to a group in your own language (App Home button, modal, deterministic
+  MCP post with attribution, localized confirmations, 4 new tests)
+- `daa63de` — Persian and on-demand translation (the previously pending set; also added
+  this HANDOVER.md to the repository)
 - `d094c35` — App Home recognizes the configured Socket Mode user token and shows MCP as connected
 - `46783db` — unique-person impact metrics for welcomed/matched
 - `bab002f` — impact command responds ephemerally outside bot-member channels
@@ -158,12 +206,13 @@ Important commits, newest first:
 - `a726d24` — remove invalid empty slash-command usage hints
 - `a586fcb` — Docker/DigitalOcean deployment safety and persistent storage documentation
 
-The live container at the time of this handover runs `d094c35` and has an active Socket Mode
-session. App Home was visibly verified with a green **Slack MCP Server is connected** status.
+The live container runs `39136a3`. Both deploys on 11 July were verified with a fresh
+Socket Mode session and `Bolt app is running!` in the logs. The local working tree is
+clean and identical to `origin/main`.
 
 ## 7. Verified end-to-end behavior
 
-The following flows have worked in the sandbox:
+Verified in the sandbox before this session:
 
 - `/threshold-welcome me` sends a welcome DM.
 - Spanish can be selected and is persisted.
@@ -174,93 +223,76 @@ The following flows have worked in the sandbox:
 - The Spanish success confirmation appears only after the MCP post succeeds.
 - `/threshold-impact` responds outside channels the bot has joined.
 - The Droplet survives reboot, reconnects Socket Mode, and retains the SQLite database.
-- The database checksum was identical before and after the reboot durability test.
 - Forced Gemini and GitHub Models fallbacks both worked.
 
-The most recently inspected live summary was approximately one unique welcomed member, one
-unique matched member, one successful introduction, one digest event, and Spanish served.
-Action counts can increase during later UI tests.
+Verified during the 11 July session:
 
-## 8. Pending, uncommitted feature set
+- Both container replacements (`daa63de`, then `39136a3`) came up with new Socket Mode
+  sessions and running Bolt apps.
+- The SQLite impact data survived the `daa63de` container replacement. Summary read from
+  the live container after that deploy: 1 unique welcomed, 1 unique matched, 2 intros
+  made, 2 digests sent, Spanish served, average time-to-connection ~60 minutes.
+- Local validation for both commits: ruff clean, full pytest suite passing
+  (32 tests at `daa63de`, 36 at `39136a3`), `manifest.json` valid, `git diff --check`
+  clean.
 
-The working tree currently contains a complete pending feature set:
+**Not yet verified:** the Persian UI flows, the translation modals, and the new Write to a
+group flow have been deployed but not yet exercised in the Slack client. The §13 checklist
+covers them.
 
-- Persian (`fa`, `فارسی`) in the welcome language selector
-- Persian greeting after selection
-- Persian introduction-success confirmation
-- Persian included in the agent's supported-language prompt and App Home language list
-- A **Start chatting** primary button on App Home
-- A **Translate text** button on App Home
-- An on-demand translation modal with language selection
-- A `Translate with Threshold` message shortcut in `manifest.json`
-- A dedicated translation agent that uses the same resilient model chain
-- Private DM delivery of translation results
-- Unit tests for Persian, App Home actions, modal defaults, validation, translation delivery,
-  and the Start chatting action
+## 8. What happened in the 11 July Claude Code session
 
-Files changed/added:
+1. **Recovered the stuck Codex work.** Revalidated the pending working tree (ruff, pytest,
+   manifest, diff check), committed the 14 listed files as `daa63de`, pushed, and deployed
+   to the Droplet. Confirmed the persisted impact summary from inside the live container.
+2. **Walked the operator through the Slack-side steps** (message shortcut, duplicate-app
+   cleanup, UI checklist).
+3. **Duplicate slash commands resolved** (§12).
+4. **Built, tested, committed (`39136a3`), pushed, and deployed the Write to a group
+   feature** at the operator's request ("I want to write in for example Persian and it
+   would translate it back in English and send it to the group").
 
-- `agent/agent.py`
-- `agent/translation.py` (new)
-- `listeners/actions/__init__.py`
-- `listeners/actions/accept_intro.py`
-- `listeners/actions/language_select.py`
-- `listeners/actions/start_conversation.py` (new)
-- `listeners/actions/translation.py` (new)
-- `listeners/views/app_home_builder.py`
-- `listeners/views/threshold_blocks.py`
-- `manifest.json`
-- `tests/test_home_actions.py` (new)
-- `tests/test_translation.py` (new)
-- `tests/test_view_builders.py`
+Files changed in `39136a3`:
 
-Validation completed:
+- `listeners/actions/group_message.py` (new — modal builder, open handler, submission
+  handler, MCP post helper, localized confirmations)
+- `listeners/actions/__init__.py` (registers `open_group_message` action and
+  `group_message_submit` view)
+- `listeners/views/app_home_builder.py` (third quick-action button)
+- `tests/test_group_message.py` (new — modal shape, happy path with a Persian message,
+  empty-text rejection, MCP-failure path)
+- `tests/test_view_builders.py` (asserts the new button is present)
 
-- Ruff: all checks passed
-- Pytest: `32 passed`, one third-party Google GenAI deprecation warning
-- Python compilation: passed
-- `manifest.json`: valid JSON
-- `git diff --check`: clean except normal Windows LF/CRLF notices
+Testing note: in `tests/test_group_message.py`, `_post_message_via_mcp` is patched with
+`new_callable=Mock` (not the default `AsyncMock`) because `asyncio.run` is also mocked —
+an `AsyncMock`'s `side_effect` only fires when awaited, so the failure path instead raises
+from the mocked `asyncio.run`.
 
-The first pytest rerun failed only because the resumed sandbox could not access the default
-Windows temp folder. It passed using:
+## 9. Environment notes for the next session
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-temp-resume
-```
+- **The repository state is fully on `origin/main`.** A Claude web UI session cloning from
+  GitHub gets everything; there is no pending local-only work.
+- **A web session cannot deploy.** The Droplet is reachable only via SSH key from the
+  operator's machine. Code and tests can be developed and pushed from anywhere; the
+  operator (or a local Claude Code session) must run the §10 runbook to deploy.
+- **Claude Code required explicit per-deploy operator approval** for SSH to the Droplet;
+  expect the same in future local sessions.
+- **Windows quirk:** `.pytest-temp-resume/` in the repo root is a permission-locked
+  leftover from the old Codex sandbox. It cannot be deleted without an elevated shell
+  (`takeown` + `icacls`). It is untracked and harmless apart from a `git status` warning.
+  Do not use it as pytest's basetemp; pass any fresh writable directory instead:
 
-## 9. Why the pending work is not deployed
+  ```powershell
+  .\.venv\Scripts\python.exe -m ruff check agent listeners tests
+  .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=<fresh-dir>
+  ```
 
-The resumed Codex environment has these restrictions:
+- **Windows PowerShell 5.1 quirk:** multi-line commit messages via here-strings got
+  mangled when chained with other commands; `git commit -F <message-file>` is reliable.
 
-- `.git` is read-only, so `git add`/`git commit` fail while creating `.git/index.lock`.
-- Outbound SSH is blocked, so `ssh root@188.166.150.193` returns permission denied.
+## 10. Deployment runbook
 
-No source changes were lost. They remain in the working tree. Claude Code should continue
-from this exact state rather than recreating the feature.
-
-## 10. Exact continuation steps for Claude Code
-
-First inspect and revalidate:
-
-```powershell
-git status --short
-.\.venv\Scripts\python.exe -m ruff check agent listeners tests
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-temp-resume
-.\.venv\Scripts\python.exe -c "import json, pathlib; json.loads(pathlib.Path('manifest.json').read_text(encoding='utf-8')); print('manifest json ok')"
-git diff --check
-```
-
-Commit and push only the listed Threshold files; preserve unrelated user work:
-
-```powershell
-git add HANDOVER.md agent/agent.py agent/translation.py listeners/actions/__init__.py listeners/actions/accept_intro.py listeners/actions/language_select.py listeners/actions/start_conversation.py listeners/actions/translation.py listeners/views/app_home_builder.py listeners/views/threshold_blocks.py manifest.json tests/test_home_actions.py tests/test_translation.py tests/test_view_builders.py
-git commit -m "feat: add Persian and on-demand translation"
-git push origin main
-git rev-parse --short HEAD
-```
-
-Then deploy using the actual new short commit hash in place of `<hash>`:
+From the Droplet, using the short hash of the commit being deployed:
 
 ```bash
 ssh root@188.166.150.193
@@ -280,60 +312,64 @@ docker ps --filter name=threshold
 docker logs --tail 50 threshold
 ```
 
-Expected log lines include a new Socket Mode session and `Bolt app is running!`. Confirm the
-persistent summary without printing secrets:
+Expected log lines include a new Socket Mode session and `Bolt app is running!`. Confirm
+the persistent summary without printing secrets:
 
 ```bash
 docker exec threshold python -c 'from store.user_store import get_impact_summary; print(get_impact_summary())'
 ```
 
-## 11. Slack configuration still required for the message shortcut
+Do not replace the external `/opt/threshold/.env` during deployment.
 
-Deploying the code does not update Slack's app configuration. After deployment, update the
-current app `A0BGHDR0NLA` through its App Manifest, or create this message shortcut manually
-under **Interactivity & Shortcuts**:
+## 11. Slack configuration — verify the message shortcut
+
+Deploying code does not update Slack's app configuration. The **Translate with Threshold**
+message shortcut must exist on app `A0BGHDR0NLA`, added either through the App Manifest
+editor or manually under **Interactivity & Shortcuts**:
 
 - Name: `Translate with Threshold`
 - Type: `Message`
 - Callback ID: `translate_with_threshold`
 - Description: `Translate this message into your chosen language`
 
-The repository's `manifest.json` already contains the correct shortcut declaration. Socket
-Mode requires no public interactivity request URL.
+The repository's `manifest.json` contains the correct declaration. The operator was given
+the exact steps on 11 July but completion has **not been confirmed** — verify by opening
+**More actions** on any message and looking for the shortcut. Socket Mode requires no
+public interactivity request URL. No further Slack configuration is needed for Write to a
+group (App Home buttons and modals are code-only).
 
-## 12. Resolve duplicate slash commands before further testing
+## 12. Duplicate slash commands — resolved
 
-The code and current manifest contain only one declaration of each command. Duplicate Slack
-autocomplete entries almost certainly come from two installed apps.
+The previous handover predicted the duplicates came from the older `threshold-agent` app
+(`A0BDRQ01S79`) being installed alongside the current app. On 11 July the operator found
+only **one** Threshold app in Manage apps and the duplicate autocomplete entries had
+disappeared on their own — most likely a combination of stale client cache and the old
+app's state settling; the root cause was never definitively pinned down.
 
-Recommended cleanup:
-
-1. Open the sandbox's **Manage apps** page.
-2. Find both `Threshold` and the older `threshold-agent` if both appear.
-3. Keep the app with ID `A0BGHDR0NLA`.
-4. Uninstall the older app with ID `A0BDRQ01S79` from this sandbox.
-5. In the current app dashboard, open **Slash Commands** and verify exactly one entry for:
-   `/threshold-welcome`, `/threshold-digest`, and `/threshold-impact`.
-6. Test autocomplete again. Delete the old developer app only after confirming the current
-   app still works.
-
-This also explains why an old impact dashboard could appear even after the Droplet had the
-new aggregation: Slack could route the identically named slash command to the old app.
+Remaining cleanup: check https://api.slack.com/apps for the old `A0BDRQ01S79` developer
+app. If it still exists, delete it — but only after the final demo is confirmed working on
+the current app. If duplicates ever reappear, that old app is the first suspect.
 
 ## 13. Post-deployment UI test checklist
 
-1. Open **Apps → Threshold → Home**.
-2. Confirm the green MCP status, Persian in the language list, and both quick-action buttons.
+1. Open **Apps → Threshold → Home** (revisiting the tab re-renders the view).
+2. Confirm the green MCP status, Persian in the language list, and **three** quick-action
+   buttons: Start chatting, Translate text, Write to a group.
 3. Click **Start chatting** and confirm a fresh DM with the language picker.
 4. Select `🇮🇷 فارسی` and confirm the Persian greeting.
 5. Send `می‌خواهم روزهای یکشنبه داوطلب شوم.` and confirm a Persian match card.
-6. Click **Translate text**, paste `Welcome to our community`, select Persian, and confirm a
-   private translation DM.
+6. Click **Translate text**, paste `Welcome to our community`, select Persian, and confirm
+   a private translation DM.
 7. On any ordinary Slack message, choose **More actions → Translate with Threshold** and
-   confirm the modal is pre-filled with that message.
-8. Run all three slash commands once after removing the old app.
-9. Recheck `/threshold-impact`; unique-person counts should not inflate from repeat welcome
-   and matching tests.
+   confirm the modal is pre-filled with that message (requires §11).
+8. Click **Write to a group**, type `می‌خواهم روزهای یکشنبه در کافه کمک کنم`, pick
+   `#cafe-volunteers`, and Send. Confirm an English post appears in the channel as
+   `🌐 @you says (translated by Threshold): …` and a Persian confirmation arrives in your
+   Threshold DM. If it fails, first check that the operator account is a member of the
+   destination channel.
+9. Run all three slash commands once and confirm single autocomplete entries.
+10. Recheck `/threshold-impact`; unique-person counts should not inflate from repeat
+    welcome and matching tests. After Persian tests, `languages served` should include FA.
 
 ## 14. Suggested prompts for product testing and the demo
 
@@ -356,6 +392,10 @@ Persian:
 - `می‌خواهم روزهای یکشنبه داوطلب شوم.`
 - `این هفته در Cornerstone چه برنامه‌هایی برگزار می‌شود؟`
 
+Persian, for the Write to a group modal:
+
+- `می‌خواهم روزهای یکشنبه در کافه کمک کنم.`
+
 Arabic:
 
 - `أنا جديد هنا وأبحث عن مجموعة تتحدث العربية.`
@@ -369,7 +409,12 @@ Conversation-memory test:
 
 ## 15. Known limitations and follow-up ideas
 
-- The operator token architecture is single-workspace and requires channel membership.
+- The operator token architecture is single-workspace and requires operator membership in
+  every destination channel (intros **and** Write to a group posts).
+- Write to a group only offers public channels (native `channels_select`), fixes the
+  target language to English, and its modal chrome is English-only; the message content
+  can be any language.
+- `message_posted` events are stored but not yet shown on the impact dashboard.
 - The Start chatting button sends a DM but cannot force Slack to change the visible tab.
 - Translation is intentionally on demand and delivered by DM.
 - The impact dashboard displays referrals needed as zero; there is not yet a complete
@@ -395,8 +440,9 @@ If time is limited, prioritize this sequence:
 3. Natural-language request.
 4. MCP-backed localized group card.
 5. Button-driven real introduction in the group channel.
-6. On-demand translation.
+6. On-demand translation — inbound (Translate text) and outbound (Write to a group).
 7. Accurate impact dashboard.
 
 That sequence demonstrates the social problem, multilingual UX, Slack-native interaction,
-real workspace grounding, human handoff, and measurable outcome in under three minutes.
+real workspace grounding, human handoff, two-way language access, and measurable outcome
+in under three minutes.
