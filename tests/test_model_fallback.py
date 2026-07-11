@@ -56,3 +56,12 @@ def test_transient_capacity_errors_are_retried():
 
 def test_authentication_errors_are_not_retried():
     assert not agent_module._is_transient_model_error(RuntimeError("401 invalid key"))
+
+
+def test_matchmaking_prompt_broadens_preferences_to_core_interest():
+    assert "core interest" in agent_module.SYSTEM_PROMPT
+    assert (
+        'retry with the core interest alone (e.g. "volunteering")'
+        in agent_module.SYSTEM_PROMPT
+    )
+    assert "day/time as preferences" in agent_module.SYSTEM_PROMPT
